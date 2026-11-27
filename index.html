@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>شرح متحرك: الباك تراكينج</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;600&display=swap">
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#eef3f1;--ink:#12302f;--mut:#4f6967;--card:#fff;--line:#cfdcd9;--ok:#1b7f79;--bad:#d9482b;--l:#ebdfc4;--d:#2f6f6a;--q:#12302f}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#0f1c1b;--ink:#e6f1ef;--mut:#9bb5b1;--card:#16292800;--card:#172a29;--line:#2a4543;--ok:#4cc2ba;--bad:#ff7a5c;--l:#c9bd9f;--d:#2f6f6a;--q:#10201f}}
+html{height:auto;scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Readex Pro",Tahoma,sans-serif;line-height:1.9}
+main{max-width:860px;margin:auto;padding:24px 16px 60px}
+h1{font-size:clamp(1.8rem,5vw,2.8rem);margin:.4em 0 .1em;font-weight:600}
+h2{font-size:1.4rem;margin:2.2em 0 .3em;font-weight:600}
+p{margin:.3em 0;color:var(--mut)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:12px}
+button{font:inherit;background:var(--ok);color:#fff;border:0;border-radius:8px;padding:6px 16px;cursor:pointer}
+button.alt{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--bad);outline-offset:2px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.msg{min-height:3.4em;margin-top:8px;color:var(--ink)}
+svg{width:100%;height:auto;display:block}
+.edge{stroke:var(--line);stroke-width:3;fill:none}
+.edge.on{stroke:var(--ok)}
+.node{fill:var(--card);stroke:var(--line);stroke-width:3}
+.dead{fill:var(--bad);font-size:20px;opacity:0;transition:opacity .3s}
+.dead.on{opacity:1}
+.goal{fill:var(--ok);font-size:20px}
+#dot{fill:var(--bad);transition:transform .55s ease}
+.board{display:grid;gap:0;margin:auto;width:min(100%,360px);direction:ltr;border:3px solid var(--d)}
+.cell{aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:clamp(1.2rem,6vw,2rem);position:relative;color:var(--q);font-weight:600}
+.cell.a{background:var(--l)}.cell.b{background:var(--d)}.cell.b{color:#fff}
+.cell.ok{box-shadow:inset 0 0 0 4px var(--ok)}
+.cell.bad{box-shadow:inset 0 0 0 4px var(--bad)}
+.cell.cur{box-shadow:inset 0 0 0 4px var(--bad)}
+.cell.q{font-size:clamp(1.6rem,8vw,2.6rem);color:var(--q)}
+.cell.b.q{color:#fff}
+pre{direction:ltr;text-align:left;background:var(--bg);border-radius:8px;padding:10px;overflow-x:auto;font-size:.84rem;line-height:1.6;color:var(--ink)}
+.row2>div{min-width:0}
+.card{overflow:hidden}
+.msg,p,label{overflow-wrap:anywhere}
+input[type=range]{flex:1;min-width:120px;max-width:100%}
+pre span{display:block;padding:0 8px;border-radius:5px;transition:background .2s}
+pre span.hl{background:rgba(27,127,121,.28)}
+pre span.hlb{background:rgba(217,72,43,.3)}
+.row2{display:grid;grid-template-columns:1fr;gap:14px}
+
+@media (prefers-reduced-motion:reduce){#dot{transition:none}}
+</style>
+</head>
+<body>
+<main>
+<h1>الباك تراكينج: ابنِ خطوة، وإذا انسدّ الطريق ارجع</h1>
+<p>أسلوب بحث يبني الحل تدريجيًا ويتراجع فور اكتشاف مسار خاطئ، وهو جزء من الريكيرشن (دالة تستدعي نفسها). جرّب الرسوم التالية بنفسك.</p>
+
+<h2>الفكرة العامة: النقطة والمسارات</h2>
+<p>النقطة هي خطوة البرنامج. تمشي للأمام، وإذا وصلت لطريق مسدود (✕) ترجع خطوة أو خطوتين وتجرب مسارًا آخر، إلى أن تصل للهدف.</p>
+<div class="card">
+<svg id="tree" viewBox="0 0 700 340" role="img" aria-label="شجرة مسارات مع طرق مسدودة"></svg>
+<div class="bar"><button id="tgo">ابدأ الحركة</button><span class="msg" id="tmsg"></span></div>
+</div>
+
+<h2>مسألة الملكات: ملكة في كل صف بدون تقاطع</h2>
+<p>الملكة تتحرك عموديًا وأفقيًا وقطريًا. نضع ملكة في كل صف، والدالة isSafe تفحص ثلاث جهات فقط: العمود فوقها والقطران العلويان. نطبّق على لوحة 4×4 للتسريع، والفكرة نفسها في 8×8.</p>
+<div class="card row2">
+<div><div class="board" id="qb"></div></div>
+<div>
+<div class="msg" id="qmsg"></div>
+<div class="bar">
+<button id="qprev" class="alt">السابق</button>
+<button id="qplay">تشغيل</button>
+<button id="qnext" class="alt">التالي</button>
+<button id="qreset" class="alt">من البداية</button>
+</div>
+<p id="qcount"></p>
+<pre id="qcode"></pre>
+</div>
+</div>
+
+<h2>مسألة الحصان: زيارة كل المربعات مرة واحدة</h2>
+<p>الحصان يتحرك على شكل حرف L ويبدأ من الزاوية (0,0) لتقليل الحركات المتاحة في البداية. عند الطريق المسدود يُمسح رقم الخطوة ويُجرَّب اتجاه آخر. نرتّب الحركات بحيث يجرّب الحصان أولًا المربع الأقل خيارات متاحة بعده (قاعدة Warnsdorff)، وهذا يوصله للحل بسرعة. نعرضها على لوحة 5×5 حتى تكتمل بسرعة، وحرّك المنزلق للتحكم بالسرعة.</p>
+<div class="card row2">
+<div><div class="board" id="kb"></div></div>
+<div>
+<div class="msg" id="kmsg"></div>
+<div class="bar">
+<button id="kplay">تشغيل</button>
+<button id="kreset" class="alt">من البداية</button>
+</div>
+<div class="bar"><label for="ksp">السرعة</label><input id="ksp" type="range" min="1" max="100" value="60"></div>
+<p id="kcount"></p>
+<pre id="kcode"></pre>
+</div>
+</div>
+
+<h2>خلاصة</h2>
+<p>البناء التدريجي، ثم التراجع عند الطريق المسدود، ثم المحاولة من جديد حتى الوصول للحل. الباك تراكينج ليس الخوارزمية الوحيدة؛ هناك خوارزميات أسرع مثل الخوارزمية الجينية (Genetic Algorithm).</p>
+</main>
+
+<script>
+const $=id=>document.getElementById(id),sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const NS="http://www.w3.org/2000/svg";
+/* ---------- 1. tree ---------- */
+(function(){
+const P={S:[350,30],A:[180,110],B:[520,110],A1:[100,200],A2:[260,200],A2a:[200,290],A2b:[320,290],B1:[440,200],B2:[600,200],B1a:[400,290],G:[600,290]};
+const E=[["S","A"],["S","B"],["A","A1"],["A","A2"],["A2","A2a"],["A2","A2b"],["B","B1"],["B","B2"],["B1","B1a"],["B2","G"]];
+const dead=["A1","A2a","A2b","B1a"];
+const walk=["S","A","A1","A","A2","A2a","A2","A2b","A2","A","S","B","B1","B1a","B1","B","B2","G"];
+const svg=$("tree");let h="";
+E.forEach(([a,b])=>h+=`<line class="edge" id="e-${a}-${b}" x1="${P[a][0]}" y1="${P[a][1]}" x2="${P[b][0]}" y2="${P[b][1]}"/>`);
+for(const k in P)h+=`<circle class="node" cx="${P[k][0]}" cy="${P[k][1]}" r="16"/>`;
+dead.forEach(k=>h+=`<text class="dead" id="d-${k}" x="${P[k][0]}" y="${P[k][1]+7}" text-anchor="middle">✕</text>`);
+h+=`<text class="goal" x="${P.G[0]}" y="${P.G[1]+7}" text-anchor="middle">★</text>`;
+h+=`<text x="${P.S[0]+26}" y="${P.S[1]+5}" fill="currentColor" font-size="14" text-anchor="start" style="direction:ltr">البداية</text>`;
+h+=`<circle id="dot" r="9" cx="0" cy="0" style="transform:translate(${P.S[0]}px,${P.S[1]}px)"/>`;
+svg.innerHTML=h;
+const edge=(a,b)=>$(`e-${a}-${b}`)||$(`e-${b}-${a}`);
+let busy=false;
+$("tgo").onclick=async()=>{
+ if(busy)return;busy=true;
+ document.querySelectorAll(".edge").forEach(e=>e.classList.remove("on"));
+ document.querySelectorAll(".dead").forEach(e=>e.classList.remove("on"));
+ const dot=$("dot");
+ for(let i=0;i<walk.length;i++){
+  const k=walk[i],prev=walk[i-1],[x,y]=P[k];
+  dot.style.transform=`translate(${x}px,${y}px)`;
+  const isBack=i>0&&walk.indexOf(k)<i&&walk.indexOf(k)<walk.lastIndexOf(prev)&&P[k][1]<P[prev][1];
+  if(i>0){const e=edge(prev,k);if(isBack)e.classList.remove("on");else e.classList.add("on")}
+  let m="نتقدّم للأمام";
+  if(isBack)m="نتراجع خطوة ونجرّب مسارًا آخر";
+  if(dead.includes(k)){m="طريق مسدود ✕";$("d-"+k).classList.add("on")}
+  if(k==="G")m="وصلنا للحل الصحيح ★";
+  $("tmsg").textContent=m;
+  await sleep(850);
+ }
+ busy=false;
+};
+})();
+
+/* ---------- board helper ---------- */
+function makeBoard(el,n){el.style.gridTemplateColumns=`repeat(${n},1fr)`;el.innerHTML="";
+ const cells=[];for(let r=0;r<n;r++)for(let c=0;c<n;c++){const d=document.createElement("div");d.className="cell "+((r+c)%2?"b":"a");el.appendChild(d);cells.push(d)}return cells}
+
+function codeView(id,lines){const el=$(id);el.innerHTML=lines.map(l=>`<span>${l.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</span>`).join("");return(on,cls)=>{[...el.children].forEach((s,k)=>{s.className=on.includes(k)?cls:""})}}
+/* ---------- 2. queens ---------- */
+(function(){
+const N=4,cells=makeBoard($("qb"),N);
+const qhl=codeView("qcode",["public class NQueensProblem {","    public static boolean solveNQueens(int[][] board, int row) {","        if (row >= N) return true; // Base Case","        for (int col = 0; col < N; col++) {","            if (isSafe(board, row, col)) {","                board[row][col] = 1; // place queen","                if (solveNQueens(board, row + 1)) // Recursive Call","                    return true;","                board[row][col] = 0; // Backtracking","            }","        }","        return false;","    }","}"]);
+const ev=[],b=Array(N).fill(-1);
+const safe=(r,c)=>{for(let i=0;i<r;i++)if(b[i]===c||Math.abs(b[i]-c)===r-i)return false;return true};
+(function s(r){
+ if(r===N){ev.push({t:"done",b:[...b]});return true}
+ for(let c=0;c<N;c++){const ok=safe(r,c);ev.push({t:"try",r,c,ok,b:[...b]});
+  if(ok){b[r]=c;ev.push({t:"place",r,c,b:[...b]});if(s(r+1))return true;b[r]=-1;ev.push({t:"remove",r,c,b:[...b]})}}
+ return false})(0);
+let i=0,timer=null;
+function draw(){
+ const e=ev[i];
+ cells.forEach((d,k)=>{const r=Math.floor(k/N),c=k%N;d.className="cell "+((r+c)%2?"b":"a");d.textContent=e.b[r]===c?"♛":"";if(e.b[r]===c)d.classList.add("q")});
+ let m="";
+ if(e.t==="try"){const d=cells[e.r*N+e.c];d.classList.add(e.ok?"ok":"bad");m=e.ok?`الصف ${e.r+1}، العمود ${e.c+1}: المربع آمن، نضع الملكة.`:`الصف ${e.r+1}، العمود ${e.c+1}: يوجد تقاطع، نجرّب العمود التالي.`}
+ if(e.t==="place")m=`وُضعت الملكة في الصف ${e.r+1}، ننتقل للصف التالي (استدعاء ذاتي).`;
+ if(e.t==="remove"){cells[e.r*N+e.c].classList.add("bad");m=`لا مكان آمن في الصف التالي، فنتراجع: نشيل الملكة من الصف ${e.r+1} ونكمل الحلقة.`}
+ if(e.t==="done")m="تم وضع كل الملكات بدون أي تقاطع. الحل مكتمل.";
+ qhl(e.t==="done"?[2]:e.t==="try"?[3,4]:e.t==="place"?[5,6]:[6,8],e.t==="remove"||(e.t==="try"&&!e.ok)?"hlb":"hl");
+ $("qmsg").textContent=m;$("qcount").textContent=`الخطوة ${i+1} من ${ev.length}`;
+}
+const go=d=>{i=Math.max(0,Math.min(ev.length-1,i+d));draw();if(i===ev.length-1)stop()};
+function stop(){clearInterval(timer);timer=null;$("qplay").textContent="تشغيل"}
+$("qnext").onclick=()=>{stop();go(1)};$("qprev").onclick=()=>{stop();go(-1)};
+$("qreset").onclick=()=>{stop();i=0;draw()};
+$("qplay").onclick=()=>{if(timer){stop();return}if(i===ev.length-1)i=0;$("qplay").textContent="إيقاف";timer=setInterval(()=>go(1),900)};
+draw();
+})();
+
+/* ---------- 3. knight ---------- */
+(function(){
+const N=5,cells=makeBoard($("kb"),N);
+const khl=codeView("kcode",["public class KnightsTourProblem {","    public static boolean solveKT(int x, int y, int movei, int[][] sol) {","        if (movei == N * N) return true; // Base Case","        for (int k = 0; k < 8; k++) { // moves ordered: fewest onward options first","            int nextX = x + xMove[k], nextY = y + yMove[k];","            if (isSafe(nextX, nextY, sol)) {","                sol[nextX][nextY] = movei; // record move","                if (solveKT(nextX, nextY, movei + 1, sol)) // Recursive Call","                    return true;","                sol[nextX][nextY] = -1; // Backtracking","            }","        }","        return false;","    }","}"]);
+const dx=[2,1,-1,-2,-2,-1,1,2],dy=[1,2,2,1,-1,-2,-2,-1];
+const g=Array.from({length:N},()=>Array(N).fill(-1));
+const ev=[];g[0][0]=0;ev.push([0,0,0]);
+let found=false;
+(function s(x,y,st){
+ if(st===N*N){found=true;return true}
+ const mv=[];for(let k=0;k<8;k++){const nx=x+dx[k],ny=y+dy[k];
+  if(nx>=0&&ny>=0&&nx<N&&ny<N&&g[nx][ny]===-1){let cnt=0;
+   for(let m=0;m<8;m++){const a=nx+dx[m],b=ny+dy[m];if(a>=0&&b>=0&&a<N&&b<N&&g[a][b]===-1)cnt++}
+   mv.push([nx,ny,cnt])}}
+ mv.sort((p,q)=>p[2]-q[2]);
+ for(const [nx,ny] of mv){
+  g[nx][ny]=st;ev.push([nx,ny,st]);
+  if(s(nx,ny,st+1))return true;
+  g[nx][ny]=-1;ev.push([nx,ny,-1]);
+ }
+ return false})(0,0,1);
+let i=0,timer=null,back=0,path=[],flash=null;
+const st=Array.from({length:N},()=>Array(N).fill(-1));
+function reset(){stop();i=0;back=0;path=[];flash=null;khl([],"");for(const r of st)r.fill(-1);paint("اضغط تشغيل لرؤية الحصان وهو يبني المسار ويتراجع.")}
+function paint(m){
+ const top=path[path.length-1];
+ cells.forEach((d,k)=>{const r=Math.floor(k/N),c=k%N,v=st[r][c];d.classList.remove("cur");
+  if(top&&top[0]===r&&top[1]===c){d.textContent="♞";d.classList.add("q")}
+  else{d.classList.remove("q");d.textContent=v>=0?v+1:""}
+  if(flash&&flash[0]===r&&flash[1]===c)d.classList.add("cur")});
+ $("kmsg").textContent=m;$("kcount").textContent=`عدد مرات التراجع: ${back}`;
+}
+function step(){
+ if(i>=ev.length){stop();flash=null;khl([2],"hl");paint("زار الحصان كل المربعات بنجاح. المسار مكتمل.");return}
+ const [x,y,v]=ev[i++];st[x][y]=v;
+ if(v<0){back++;path.pop();flash=[x,y];khl([7,9],"hlb");paint("طريق مسدود: نمسح رقم الخطوة، والحصان يرجع للمربع السابق ويجرّب اتجاهًا آخر.")}
+ else{path.push([x,y]);flash=null;khl([5,6,7],"hl");paint(`الحصان يقفز إلى المربع ونكتب رقم الخطوة ${v+1} على المربع الذي غادره.`)}
+}
+function stop(){clearInterval(timer);timer=null;$("kplay").textContent="تشغيل"}
+function start(){stop();$("kplay").textContent="إيقاف";const d=Math.max(5,420-4*$("ksp").value);timer=setInterval(step,d)}
+$("kplay").onclick=()=>{if(timer){stop();return}if(i>=ev.length)reset();start()};
+$("ksp").oninput=()=>{if(timer)start()};
+$("kreset").onclick=reset;
+reset();
+})();
+</script>
+</body>
+</html>
